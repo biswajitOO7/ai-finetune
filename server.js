@@ -12,12 +12,6 @@ app.use(cors());
 app.use(express.static('public'));
 app.use(express.json()); // Added for parsing JSON bodies in /chat
 
-// Create models directory
-const modelsDir = 'models';
-if (!fs.existsSync(modelsDir)) {
-    fs.mkdirSync(modelsDir);
-}
-
 // Configure multer for file upload
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
@@ -33,6 +27,95 @@ const storage = multer.diskStorage({
 });
 
 const upload = multer({ storage: storage });
+
+// --- Kimi Routes ---
+
+app.get('/kimi', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'kimi.html'));
+});
+
+// Endpoint to extract text from PDF (reuses python machinery or simple script)
+app.post('/extract-text', upload.single('pdf'), (req, res) => {
+    if (!req.file) return res.status(400).send('No file uploaded.');
+
+    const filePath = req.file.path;
+    const pythonExecutable = process.env.PYTHON_PATH || path.join(__dirname, 'venv', 'Scripts', 'python');
+
+    // We need a simple script to just dump text. 
+    // Let's reuse train.py logic or create a one-liner.
+    // Creating a dedicated script is cleaner.
+    const pythonProcess = spawn(pythonExecutable, ['extract_text.py', filePath]);
+
+    let textData = '';
+    let errorData = '';
+
+    pythonProcess.stdout.on('data', (data) => textData += data.toString());
+    pythonProcess.stderr.on('data', (data) => errorData += data.toString());
+
+    pythonProcess.on('close', (code) => {
+        // Cleanup
+        // fs.unlinkSync(filePath); 
+        if (code !== 0) {
+            res.status(500).json({ message: 'Extraction failed', error: errorData });
+        } else {
+            res.json({ text: textData.trim() });
+        }
+    });
+});
+
+app.post('/api/kimi-chat', async (req, res) => {
+    const { prompt, context } = req.body;
+
+    // Construct the prompt with context
+    const fullPrompt = context
+        ? `Context:\n${context}\n\nQuestion: ${prompt}\n\nAnswer based on the context above:`
+        : prompt;
+
+    try {
+        const response = await fetch("https://router.huggingface.co/v1/chat/completions", { // Updated per user instruction base_url
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${process.env.HF_TOKEN}`, // Use env var for token
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                model: "moonshotai/Kimi-K2.5", // Correct model ID from router
+                messages: [
+                    { role: "user", content: fullPrompt }
+                ],
+                max_tokens: 500,
+                stream: false
+            })
+        });
+
+        const text = await response.text();
+
+        let data;
+        try {
+            data = JSON.parse(text);
+        } catch (e) {
+            console.error("Failed to parse JSON response:", text);
+            return res.status(500).json({ message: "Invalid response from Kimi API" });
+        }
+
+        if (response.ok) {
+            res.json({ response: data.choices[0].message.content });
+        } else {
+            res.status(response.status).json({ message: data || "API Error" });
+        }
+    } catch (error) {
+        console.error("Kimi API Error:", error);
+        res.status(500).json({ message: "Failed to connect to Kimi API" });
+    }
+});
+
+// Create models directory
+const modelsDir = 'models';
+if (!fs.existsSync(modelsDir)) {
+    fs.mkdirSync(modelsDir);
+}
+
+
 
 app.post('/upload', upload.single('pdf'), (req, res) => {
     if (!req.file) {

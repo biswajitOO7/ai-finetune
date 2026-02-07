@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat with Kimi-K2.5 (Context Aware)</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f0f4f8;
+            color: #333;
+        }
+
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+            margin-bottom: 30px;
+        }
+
+        .section-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #34495e;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 10px;
+        }
+
+        /* Upload Section */
+        .upload-area {
+            border: 2px dashed #bdc3c7;
+            padding: 30px;
+            text-align: center;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #fafafa;
+        }
+
+        .upload-area:hover {
+            border-color: #7f8c8d;
+            background: #ecf0f1;
+        }
+
+        #file-name {
+            margin-top: 10px;
+            font-style: italic;
+            color: #7f8c8d;
+        }
+
+        button {
+            background-color: #3498db;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 20px;
+            width: 100%;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background-color: #2980b9;
+        }
+
+        button:disabled {
+            background-color: #bdc3c7;
+            cursor: not-allowed;
+        }
+
+        #status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 6px;
+            display: none;
+        }
+
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            display: block !important;
+        }
+
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            display: block !important;
+        }
+
+        .loading {
+            background-color: #e2e3e5;
+            color: #383d41;
+            display: block !important;
+        }
+
+        /* Chat Section */
+        #chat-box {
+            border: 1px solid #bdc3c7;
+            height: 400px;
+            overflow-y: auto;
+            padding: 15px;
+            border-radius: 8px;
+            background: #fff;
+            margin-bottom: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .message {
+            padding: 10px 15px;
+            border-radius: 12px;
+            max-width: 80%;
+            line-height: 1.5;
+        }
+
+        .user-msg {
+            background-color: #3498db;
+            color: white;
+            align-self: flex-end;
+        }
+
+        .bot-msg {
+            background-color: #ecf0f1;
+            color: #2c3e50;
+            align-self: flex-start;
+        }
+
+        .chat-input-area {
+            display: flex;
+            gap: 10px;
+        }
+
+        .chat-input-area input {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #bdc3c7;
+            border-radius: 6px;
+            font-size: 16px;
+        }
+
+        .chat-input-area button {
+            width: auto;
+            margin-top: 0;
+            background-color: #2ecc71;
+        }
+
+        .chat-input-area button:hover {
+            background-color: #27ae60;
+        }
+
+        .nav-link {
+            display: block;
+            text-align: center;
+            margin-top: 20px;
+            color: #3498db;
+            text-decoration: none;
+        }
+
+        .nav-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Chat with Kimi-K2.5 (Context Aware)</h1>
+
+    <!-- Upload Context Section -->
+    <div class="container">
+        <div class="section-title">1. Upload Context (PDF)</div>
+        <div class="upload-area" id="drop-zone">
+            <p>Drag & Drop PDF here to set context</p>
+            <input type="file" id="fileInput" accept=".pdf" style="display: none;">
+        </div>
+        <div id="file-name"></div>
+        <button id="uploadBtn" disabled>Process Context</button>
+        <div id="status"></div>
+    </div>
+
+    <!-- Chat Section -->
+    <div class="container">
+        <div class="section-title">2. Chat</div>
+        <div id="chat-box">
+            <div class="message bot-msg">Upload a PDF above to give me context, or just start chatting!</div>
+        </div>
+        <div class="chat-input-area">
+            <input type="text" id="chatInput" placeholder="Ask something about the document...">
+            <button id="sendBtn">Send</button>
+        </div>
+    </div>
+
+    <a href="/" class="nav-link">← Back to GPT-2 Fine-tuner</a>
+
+    <script>
+        let currentContext = "";
+
+        // --- Upload Logic ---
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('fileInput');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const fileNameDisplay = document.getElementById('file-name');
+        const statusDiv = document.getElementById('status');
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', handleFileSelect);
+
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.background = '#dbeaea'; });
+        dropZone.addEventListener('dragleave', () => { dropZone.style.background = '#fafafa'; });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.style.background = '#fafafa';
+            fileInput.files = e.dataTransfer.files;
+            handleFileSelect();
+        });
+
+        function handleFileSelect() {
+            if (fileInput.files.length > 0) {
+                fileNameDisplay.textContent = `Selected: ${fileInput.files[0].name}`;
+                uploadBtn.disabled = false;
+            }
+        }
+
+        uploadBtn.addEventListener('click', async () => {
+            const file = fileInput.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('pdf', file);
+            formData.append('extractOnly', 'true'); // Flag to tell server just to extract text
+
+            uploadBtn.disabled = true;
+            statusDiv.textContent = 'Extracting text...';
+            statusDiv.className = 'loading';
+
+            try {
+                // We reuse the existing upload endpoint but will modify server to handle 'extractOnly'
+                // Or create a new one. Let's assume we create a specific one for Kimi context.
+                const response = await fetch('/extract-text', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    currentContext = result.text;
+                    statusDiv.textContent = `Success! Context loaded (${currentContext.length} chars).`;
+                    statusDiv.className = 'success';
+                    addMessage(`I've read <strong>${file.name}</strong>. Ask me anything about it!`, 'bot');
+                } else {
+                    throw new Error(result.message || 'Extraction failed');
+                }
+            } catch (error) {
+                statusDiv.textContent = `Error: ${error.message}`;
+                statusDiv.className = 'error';
+            } finally {
+                uploadBtn.disabled = false;
+            }
+        });
+
+        // --- Chat Logic ---
+        const chatBox = document.getElementById('chat-box');
+        const chatInput = document.getElementById('chatInput');
+        const sendBtn = document.getElementById('sendBtn');
+
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+
+        sendBtn.addEventListener('click', sendMessage);
+
+        async function sendMessage() {
+            const text = chatInput.value.trim();
+            if (!text) return;
+
+            addMessage(text, 'user');
+            chatInput.value = '';
+            chatInput.disabled = true;
+            sendBtn.disabled = true;
+
+            const loadingMsg = addMessage('Thinking...', 'bot');
+
+            try {
+                const response = await fetch('/api/kimi-chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        prompt: text,
+                        context: currentContext
+                    })
+                });
+
+                const result = await response.json();
+                chatBox.removeChild(loadingMsg);
+
+                if (response.ok) {
+                    addMessage(result.response, 'bot');
+                } else {
+                    addMessage(`Error: ${result.message}`, 'bot');
+                }
+            } catch (e) {
+                chatBox.removeChild(loadingMsg);
+                addMessage(`Network Error: ${e.message}`, 'bot');
+            } finally {
+                chatInput.disabled = false;
+                sendBtn.disabled = false;
+                chatInput.focus();
+            }
+        }
+
+        function addMessage(text, sender) {
+            const div = document.createElement('div');
+            div.className = `message ${sender}-msg`;
+            div.innerHTML = text.replace(/\n/g, '<br>');
+            chatBox.appendChild(div);
+            chatBox.scrollTop = chatBox.scrollHeight;
+            return div;
+        }
+    </script>
+</body>
+
+</html>
