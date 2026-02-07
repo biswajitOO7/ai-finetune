@@ -1,0 +1,11 @@
+node_modules
+venv
+.git
+.gitignore
+uploads/
+fine_tuned_model/
+models/
+train.txt
+error.log
+__pycache__
+*.pyc

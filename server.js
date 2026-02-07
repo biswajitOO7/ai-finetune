@@ -6,7 +6,7 @@ const path = require('path');
 const fs = require('fs');
 
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 7860;
 
 app.use(cors());
 app.use(express.static('public'));
@@ -50,8 +50,8 @@ app.post('/upload', upload.single('pdf'), (req, res) => {
     console.log(`File uploaded: ${filePath}, Model Name: ${modelName}`);
 
     // Spawn Python process
-    // Use the python executable from the virtual environment
-    const pythonExecutable = path.join(__dirname, 'venv', 'Scripts', 'python');
+    // Use the python executable from the virtual environment or environment variable
+    const pythonExecutable = process.env.PYTHON_PATH || path.join(__dirname, 'venv', 'Scripts', 'python');
     const pythonProcess = spawn(pythonExecutable, ['train.py', filePath, '--output_dir', modelOutputDir]);
 
     let stdoutData = '';
@@ -107,7 +107,7 @@ app.post('/chat', (req, res) => {
         return res.status(404).json({ message: 'Model not found.' });
     }
 
-    const pythonExecutable = path.join(__dirname, 'venv', 'Scripts', 'python');
+    const pythonExecutable = process.env.PYTHON_PATH || path.join(__dirname, 'venv', 'Scripts', 'python');
     const pythonProcess = spawn(pythonExecutable, ['chat.py', '--model_dir', modelpath, '--prompt', prompt]);
 
     let responseText = '';

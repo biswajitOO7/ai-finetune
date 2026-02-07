@@ -55,6 +55,18 @@ To push this project to GitHub:
 & "C:\Program Files\Git\cmd\git.exe" push -u origin main
 ```
 
+## Deployment (Hugging Face Spaces)
+
+This project is configured for **Hugging Face Spaces**.
+
+1.  **Create a new Space** on [Hugging Face](https://huggingface.co/new-space).
+    -   **SDK**: Docker
+    -   **Hardware**: Free CPU basic (2 vCPU, 16GB RAM)
+2.  **Connect GitHub**:
+    -   Select "Connect to GitHub" (if prompted) or push your code directly to the Space's Git repository.
+3.  **Wait for Build**: Hugging Face will automatically build the Docker image and start the app.
+4.  **Access**: Your app will be live at `https://huggingface.co/spaces/<username>/<space-name>`.
+
 ## Troubleshooting
 
 - If the training fails, the frontend will now display the error logs in the red error box.
