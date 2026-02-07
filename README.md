@@ -1,3 +1,13 @@
+---
+title: AI Finetune Chat
+emoji: 🤖
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+pinned: false
+app_port: 7860
+---
+
 # GPT-2 Fine-tuning Application
 
 This guide explains how to run the application and verify its functionality.
