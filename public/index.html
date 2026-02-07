@@ -293,7 +293,7 @@
             logsPre.textContent = 'Starting...';
 
             try {
-                const response = await fetch('http://localhost:3000/upload', {
+                const response = await fetch('/upload', {
                     method: 'POST',
                     body: formData
                 });
@@ -334,7 +334,7 @@
 
         async function loadModels() {
             try {
-                const response = await fetch('http://localhost:3000/models');
+                const response = await fetch('/models');
                 const models = await response.json();
 
                 // Keep the default option
@@ -382,7 +382,7 @@
             const loadingMsg = addMessage('Thinking...', 'bot');
 
             try {
-                const response = await fetch('http://localhost:3000/chat', {
+                const response = await fetch('/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ modelName, prompt: text })
