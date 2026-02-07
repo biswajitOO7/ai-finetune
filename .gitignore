@@ -1,0 +1,11 @@
+node_modules
+venv
+__pycache__
+*.pyc
+uploads/
+fine_tuned_model/
+models/
+train.txt
+.DS_Store
+error.log
+.vscode/

@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPT-2 Fine-tuner & Chat</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f9;
+            color: #333;
+        }
+
+        h1 {
+            color: #5a5a5a;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+
+        .section-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #444;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+        }
+
+        /* Upload Section */
+        .upload-area {
+            border: 2px dashed #ccc;
+            padding: 30px;
+            text-align: center;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #fafafa;
+        }
+
+        .upload-area:hover {
+            border-color: #666;
+            background: #f0f0f0;
+        }
+
+        .input-group {
+            margin-top: 20px;
+            text-align: left;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 20px;
+            width: 100%;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+
+        #status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 6px;
+            display: none;
+        }
+
+        .success {
+            background-color: #dff0d8;
+            color: #3c763d;
+            display: block !important;
+        }
+
+        .error {
+            background-color: #f2dede;
+            color: #a94442;
+            display: block !important;
+        }
+
+        .loading {
+            color: #31708f;
+            background-color: #d9edf7;
+            display: block !important;
+        }
+
+        pre {
+            background: #2d2d2d;
+            color: #f8f8f8;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            max-height: 200px;
+            font-size: 14px;
+            margin-top: 15px;
+            display: none;
+        }
+
+        /* Chat Section */
+        #chat-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        select {
+            flex: 1;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            font-size: 16px;
+        }
+
+        #chat-box {
+            border: 1px solid #eee;
+            height: 300px;
+            overflow-y: auto;
+            padding: 15px;
+            border-radius: 8px;
+            background: #fff;
+            margin-bottom: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .message {
+            padding: 10px 15px;
+            border-radius: 12px;
+            max-width: 80%;
+            line-height: 1.4;
+        }
+
+        .user-msg {
+            background-color: #e3f2fd;
+            align-self: flex-end;
+            color: #0d47a1;
+        }
+
+        .bot-msg {
+            background-color: #f5f5f5;
+            align-self: flex-start;
+            color: #333;
+        }
+
+        .chat-input-area {
+            display: flex;
+            gap: 10px;
+        }
+
+        .chat-input-area input {
+            flex: 1;
+        }
+
+        .chat-input-area button {
+            width: auto;
+            margin-top: 0;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Upload Section -->
+    <div class="container">
+        <div class="section-title">New Model Training</div>
+        <div class="upload-area" id="drop-zone">
+            <p>Drag & Drop PDF here or Click to Select</p>
+            <input type="file" id="fileInput" accept=".pdf" style="display: none;">
+        </div>
+        <div id="file-name" style="margin-top: 10px; font-style: italic; color: #666;"></div>
+
+        <div class="input-group">
+            <label for="modelName">Model Name (e.g. Biology, Finance):</label>
+            <input type="text" id="modelName" placeholder="Enter a unique name for this model">
+        </div>
+
+        <button id="uploadBtn" disabled>Start Fine-tuning</button>
+        <div id="status"></div>
+        <pre id="logs"></pre>
+    </div>
+
+    <!-- Chat Section -->
+    <div class="container">
+        <div class="section-title">Chat with Fine-tuned Models</div>
+        <div id="chat-controls">
+            <select id="modelSelect">
+                <option value="" disabled selected>Select a model...</option>
+            </select>
+            <button id="refreshModelsBtn" style="width: auto; margin: 0; padding: 10px;">↻</button>
+        </div>
+
+        <div id="chat-box">
+            <div class="message bot-msg">Select a model above to start chatting!</div>
+        </div>
+
+        <div class="chat-input-area">
+            <input type="text" id="chatInput" placeholder="Type your message here..." disabled>
+            <button id="sendBtn" disabled>Send</button>
+        </div>
+    </div>
+
+    <script>
+        // --- Upload Logic ---
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('fileInput');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const fileNameDisplay = document.getElementById('file-name');
+        const modelNameInput = document.getElementById('modelName');
+        const statusDiv = document.getElementById('status');
+        const logsPre = document.getElementById('logs');
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', handleFileSelect);
+
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.background = '#e9e9e9'; });
+        dropZone.addEventListener('dragleave', () => { dropZone.style.background = '#fafafa'; });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.style.background = '#fafafa';
+            fileInput.files = e.dataTransfer.files;
+            handleFileSelect();
+        });
+
+        function handleFileSelect() {
+            if (fileInput.files.length > 0) {
+                fileNameDisplay.textContent = `Selected: ${fileInput.files[0].name}`;
+                checkUploadReady();
+            }
+        }
+
+        modelNameInput.addEventListener('input', checkUploadReady);
+
+        function checkUploadReady() {
+            if (fileInput.files.length > 0 && modelNameInput.value.trim().length > 0) {
+                uploadBtn.disabled = false;
+            } else {
+                uploadBtn.disabled = true;
+            }
+        }
+
+        uploadBtn.addEventListener('click', async () => {
+            const file = fileInput.files[0];
+            const modelName = modelNameInput.value.trim();
+            if (!file || !modelName) return;
+
+            const formData = new FormData();
+            formData.append('pdf', file);
+            formData.append('modelName', modelName);
+
+            uploadBtn.disabled = true;
+            modelNameInput.disabled = true;
+            statusDiv.textContent = 'Uploading and processing... This may take a while.';
+            statusDiv.className = 'loading';
+            logsPre.style.display = 'block';
+            logsPre.textContent = 'Starting...';
+
+            try {
+                const response = await fetch('http://localhost:3000/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    statusDiv.textContent = `Success! Model '${modelName}' fine-tuned.`;
+                    statusDiv.className = 'success';
+                    logsPre.textContent = result.logs || 'No logs returned.';
+                    loadModels(); // Refresh model list
+                } else {
+                    const error = new Error(result.message || 'Upload failed');
+                    error.logs = result.logs;
+                    throw error;
+                }
+            } catch (error) {
+                statusDiv.textContent = `Error: ${error.message}`;
+                statusDiv.className = 'error';
+                if (error.logs) {
+                    logsPre.textContent = error.logs;
+                    if (error.logs.includes("ReadTimeout") || error.logs.includes("ConnectionError")) {
+                        statusDiv.textContent += " (Possible internet connection issue. Please try again.)";
+                    }
+                }
+            } finally {
+                uploadBtn.disabled = false;
+                modelNameInput.disabled = false;
+            }
+        });
+
+        // --- Chat Logic ---
+        const modelSelect = document.getElementById('modelSelect');
+        const refreshModelsBtn = document.getElementById('refreshModelsBtn');
+        const chatBox = document.getElementById('chat-box');
+        const chatInput = document.getElementById('chatInput');
+        const sendBtn = document.getElementById('sendBtn');
+
+        async function loadModels() {
+            try {
+                const response = await fetch('http://localhost:3000/models');
+                const models = await response.json();
+
+                // Keep the default option
+                modelSelect.innerHTML = '<option value="" disabled selected>Select a model...</option>';
+
+                models.forEach(model => {
+                    const option = document.createElement('option');
+                    option.value = model;
+                    option.textContent = model;
+                    modelSelect.appendChild(option);
+                });
+            } catch (e) {
+                console.error("Failed to load models", e);
+            }
+        }
+
+        loadModels();
+        refreshModelsBtn.addEventListener('click', loadModels);
+
+        modelSelect.addEventListener('change', () => {
+            if (modelSelect.value) {
+                chatInput.disabled = false;
+                sendBtn.disabled = false;
+                addMessage(`Switched to model: <strong>${modelSelect.value}</strong>`, 'bot');
+            }
+        });
+
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !sendBtn.disabled) sendMessage();
+        });
+
+        sendBtn.addEventListener('click', sendMessage);
+
+        async function sendMessage() {
+            const text = chatInput.value.trim();
+            const modelName = modelSelect.value;
+
+            if (!text || !modelName) return;
+
+            addMessage(text, 'user');
+            chatInput.value = '';
+            chatInput.disabled = true;
+            sendBtn.disabled = true;
+
+            const loadingMsg = addMessage('Thinking...', 'bot');
+
+            try {
+                const response = await fetch('http://localhost:3000/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ modelName, prompt: text })
+                });
+
+                const result = await response.json();
+
+                // Remove loading message
+                chatBox.removeChild(loadingMsg);
+
+                if (response.ok) {
+                    addMessage(result.response || "No response generated.", 'bot');
+                } else {
+                    addMessage(`Error: ${result.message || 'Unknown error'}`, 'bot');
+                }
+            } catch (e) {
+                chatBox.removeChild(loadingMsg);
+                addMessage(`Network Error: ${e.message}`, 'bot');
+            } finally {
+                chatInput.disabled = false;
+                sendBtn.disabled = false;
+                chatInput.focus();
+            }
+        }
+
+        function addMessage(text, sender) {
+            const div = document.createElement('div');
+            div.className = `message ${sender}-msg`;
+            div.innerHTML = text; // Allow HTML for bolding model name
+            chatBox.appendChild(div);
+            chatBox.scrollTop = chatBox.scrollHeight;
+            return div;
+        }
+    </script>
+</body>
+
+</html>
