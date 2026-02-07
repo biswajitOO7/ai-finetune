@@ -10,7 +10,8 @@ const port = process.env.PORT || 7860;
 
 app.use(cors());
 app.use(express.static('public'));
-app.use(express.json()); // Added for parsing JSON bodies in /chat
+app.use(express.json({ limit: '50mb' })); // Increased limit for large PDF contexts
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Configure multer for file upload
 const storage = multer.diskStorage({
