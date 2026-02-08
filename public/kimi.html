@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chat with Kimi-K2.5 (Context Aware)</title>
+    <title>Chat with Kimi-K2.5 (Named Contexts)</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -179,43 +179,57 @@
 
 <body>
 
-    <h1>Chat with Kimi-K2.5 (Context Aware)</h1>
+    <h1>Chat with Kimi-K2.5 (Named Contexts)</h1>
 
     <!-- Upload Context Section -->
     <div class="container">
-        <div class="section-title">1. Upload Context (PDF)</div>
+        <div class="section-title">1. Create New Context (Fine-tune)</div>
         <div class="upload-area" id="drop-zone">
-            <p>Drag & Drop PDF here to set context</p>
+            <p>Drag & Drop PDF here to extract context</p>
             <input type="file" id="fileInput" accept=".pdf" style="display: none;">
         </div>
         <div id="file-name"></div>
-        <button id="uploadBtn" disabled>Process Context</button>
+
+        <input type="text" id="modelNameInput" placeholder="Enter a unique name for this context (e.g., BiologyBook)"
+            style="width: 100%; padding: 10px; margin-top: 15px; border: 1px solid #bdc3c7; border-radius: 6px;">
+
+        <button id="uploadBtn" disabled>Save Context</button>
         <div id="status"></div>
     </div>
 
     <!-- Chat Section -->
     <div class="container">
         <div class="section-title">2. Chat</div>
+
+        <select id="modelSelect"
+            style="width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #bdc3c7; border-radius: 6px;">
+            <option value="">Select a Context Model...</option>
+        </select>
+        <button id="refreshModelsBtn"
+            style="margin-top: 5px; margin-bottom: 15px; background-color: #95a5a6; padding: 8px;">Refresh
+            Models</button>
+
         <div id="chat-box">
-            <div class="message bot-msg">Upload a PDF above to give me context, or just start chatting!</div>
+            <div class="message bot-msg">Select a context model above to start chatting!</div>
         </div>
         <div class="chat-input-area">
-            <input type="text" id="chatInput" placeholder="Ask something about the document...">
-            <button id="sendBtn">Send</button>
+            <input type="text" id="chatInput" placeholder="Ask something about the document..." disabled>
+            <button id="sendBtn" disabled>Send</button>
         </div>
     </div>
 
     <a href="/" class="nav-link">← Back to GPT-2 Fine-tuner</a>
 
     <script>
-        let currentContext = "";
-
         // --- Upload Logic ---
         const dropZone = document.getElementById('drop-zone');
         const fileInput = document.getElementById('fileInput');
         const uploadBtn = document.getElementById('uploadBtn');
         const fileNameDisplay = document.getElementById('file-name');
+        const modelNameInput = document.getElementById('modelNameInput');
         const statusDiv = document.getElementById('status');
+        const modelSelect = document.getElementById('modelSelect');
+        const refreshModelsBtn = document.getElementById('refreshModelsBtn');
 
         dropZone.addEventListener('click', () => fileInput.click());
         fileInput.addEventListener('change', handleFileSelect);
@@ -232,26 +246,31 @@
         function handleFileSelect() {
             if (fileInput.files.length > 0) {
                 fileNameDisplay.textContent = `Selected: ${fileInput.files[0].name}`;
-                uploadBtn.disabled = false;
+                checkUploadReady();
             }
+        }
+
+        modelNameInput.addEventListener('input', checkUploadReady);
+
+        function checkUploadReady() {
+            uploadBtn.disabled = !(fileInput.files.length > 0 && modelNameInput.value.trim().length > 0);
         }
 
         uploadBtn.addEventListener('click', async () => {
             const file = fileInput.files[0];
-            if (!file) return;
+            const modelName = modelNameInput.value.trim();
+            if (!file || !modelName) return;
 
             const formData = new FormData();
             formData.append('pdf', file);
-            formData.append('extractOnly', 'true'); // Flag to tell server just to extract text
+            formData.append('modelName', modelName);
 
             uploadBtn.disabled = true;
-            statusDiv.textContent = 'Extracting text...';
+            statusDiv.textContent = 'Extracting and saving context...';
             statusDiv.className = 'loading';
 
             try {
-                // We reuse the existing upload endpoint but will modify server to handle 'extractOnly'
-                // Or create a new one. Let's assume we create a specific one for Kimi context.
-                const response = await fetch('/extract-text', {
+                const response = await fetch('/kimi-upload', {
                     method: 'POST',
                     body: formData
                 });
@@ -259,25 +278,65 @@
                 const result = await response.json();
 
                 if (response.ok) {
-                    currentContext = result.text;
-                    statusDiv.textContent = `Success! Context loaded (${currentContext.length} chars).`;
+                    statusDiv.textContent = result.message;
                     statusDiv.className = 'success';
-                    addMessage(`I've read <strong>${file.name}</strong>. Ask me anything about it!`, 'bot');
+                    loadModels(); // Refresh list
+                    modelNameInput.value = '';
+                    fileInput.value = '';
+                    fileNameDisplay.textContent = '';
                 } else {
-                    throw new Error(result.message || 'Extraction failed');
+                    throw new Error(result.message || 'Upload failed');
                 }
             } catch (error) {
                 statusDiv.textContent = `Error: ${error.message}`;
                 statusDiv.className = 'error';
             } finally {
-                uploadBtn.disabled = false;
+                uploadBtn.disabled = false; // Re-enable? Or check status
+                checkUploadReady();
             }
         });
+
+        // --- Model Listing ---
+        async function loadModels() {
+            try {
+                const response = await fetch('/kimi-models');
+                const models = await response.json();
+
+                // Clear existing (except first)
+                while (modelSelect.options.length > 1) {
+                    modelSelect.remove(1);
+                }
+
+                models.forEach(model => {
+                    const option = document.createElement('option');
+                    option.value = model;
+                    option.textContent = model;
+                    modelSelect.appendChild(option);
+                });
+            } catch (e) {
+                console.error("Failed to load models", e);
+            }
+        }
+
+        refreshModelsBtn.addEventListener('click', loadModels);
+        loadModels(); // Initial load
 
         // --- Chat Logic ---
         const chatBox = document.getElementById('chat-box');
         const chatInput = document.getElementById('chatInput');
         const sendBtn = document.getElementById('sendBtn');
+
+        modelSelect.addEventListener('change', () => {
+            const selected = modelSelect.value;
+            if (selected) {
+                chatInput.disabled = false;
+                sendBtn.disabled = false;
+                addMessage(`Switched to context: <strong>${selected}</strong>`, 'bot');
+            } else {
+                chatInput.disabled = true;
+                sendBtn.disabled = true;
+            }
+        });
 
         chatInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') sendMessage();
@@ -287,7 +346,9 @@
 
         async function sendMessage() {
             const text = chatInput.value.trim();
-            if (!text) return;
+            const modelName = modelSelect.value;
+
+            if (!text || !modelName) return;
 
             addMessage(text, 'user');
             chatInput.value = '';
@@ -302,7 +363,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         prompt: text,
-                        context: currentContext
+                        modelName: modelName
                     })
                 });
 
