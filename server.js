@@ -10,7 +10,7 @@ const port = process.env.PORT || 7860;
 
 app.use(cors());
 app.use(express.static('public'));
-app.use(express.json({ limit: '50mb' })); // Increased limit for large PDF contexts
+app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Configure multer for file upload
@@ -31,20 +31,38 @@ const upload = multer({ storage: storage });
 
 // --- Kimi Routes ---
 
+const kimiModelsDir = 'kimi_models';
+if (!fs.existsSync(kimiModelsDir)) {
+    fs.mkdirSync(kimiModelsDir);
+}
+
 app.get('/kimi', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'kimi.html'));
 });
 
-// Endpoint to extract text from PDF (reuses python machinery or simple script)
-app.post('/extract-text', upload.single('pdf'), (req, res) => {
+// List available Kimi "models" (saved contexts)
+app.get('/kimi-models', (req, res) => {
+    if (!fs.existsSync(kimiModelsDir)) {
+        return res.json([]);
+    }
+    const files = fs.readdirSync(kimiModelsDir)
+        .filter(file => file.endsWith('.txt'))
+        .map(file => file.replace('.txt', ''));
+    res.json(files);
+});
+
+// Endpoint to extract text and SAVE it as a named "model"
+app.post('/kimi-upload', upload.single('pdf'), (req, res) => {
     if (!req.file) return res.status(400).send('No file uploaded.');
+
+    const modelName = req.body.modelName;
+    if (!modelName) {
+        return res.status(400).send({ message: 'Model name is required.' });
+    }
 
     const filePath = req.file.path;
     const pythonExecutable = process.env.PYTHON_PATH || path.join(__dirname, 'venv', 'Scripts', 'python');
 
-    // We need a simple script to just dump text. 
-    // Let's reuse train.py logic or create a one-liner.
-    // Creating a dedicated script is cleaner.
     const pythonProcess = spawn(pythonExecutable, ['extract_text.py', filePath]);
 
     let textData = '';
@@ -54,33 +72,61 @@ app.post('/extract-text', upload.single('pdf'), (req, res) => {
     pythonProcess.stderr.on('data', (data) => errorData += data.toString());
 
     pythonProcess.on('close', (code) => {
-        // Cleanup
+        // Cleanup uploaded file if desired
         // fs.unlinkSync(filePath); 
+
         if (code !== 0) {
             res.status(500).json({ message: 'Extraction failed', error: errorData });
         } else {
-            res.json({ text: textData.trim() });
+            const extractedText = textData.trim(); // Trim whitespace
+            if (!extractedText) {
+                return res.status(500).json({ message: 'Extraction failed: No text found in PDF.' });
+            }
+
+            // Save to kimi_models directory
+            const savePath = path.join(kimiModelsDir, `${modelName}.txt`);
+            try {
+                fs.writeFileSync(savePath, extractedText);
+                res.json({ message: `Model '${modelName}' created successfully!`, textLength: extractedText.length });
+            } catch (err) {
+                console.error("Error saving model:", err);
+                res.status(500).json({ message: 'Failed to save model context.' });
+            }
         }
     });
 });
 
 app.post('/api/kimi-chat', async (req, res) => {
-    const { prompt, context } = req.body;
+    const { prompt, modelName, context } = req.body;
+
+    let contextToUse = context || "";
+
+    // If modelName is provided, load context from file
+    if (modelName) {
+        const modelPath = path.join(kimiModelsDir, `${modelName}.txt`);
+        if (fs.existsSync(modelPath)) {
+            try {
+                contextToUse = fs.readFileSync(modelPath, 'utf8');
+            } catch (err) {
+                console.error("Error reading context file:", err);
+            }
+        }
+    }
 
     // Construct the prompt with context
-    const fullPrompt = context
-        ? `Context:\n${context}\n\nQuestion: ${prompt}\n\nAnswer based on the context above:`
+    const fullPrompt = contextToUse
+        ? `Context:\n${contextToUse}\n\nQuestion: ${prompt}\n\nAnswer based on the context above:`
         : prompt;
 
     try {
-        const response = await fetch("https://router.huggingface.co/v1/chat/completions", { // Updated per user instruction base_url
+        const response = await fetch("https://router.huggingface.co/v1/chat/completions", {
             method: "POST",
             headers: {
-                "Authorization": `Bearer ${process.env.HF_TOKEN}`, // Use env var for token
+                "Authorization": `Bearer ${process.env.HF_TOKEN}`,
                 "Content-Type": "application/json"
             },
             body: JSON.stringify({
-                model: "moonshotai/Kimi-K2.5", // Correct model ID from router
+                model: "moonshotai/Kimi-K2.5",
                 messages: [
                     { role: "user", content: fullPrompt }
                 ],
@@ -110,13 +156,12 @@ app.post('/api/kimi-chat', async (req, res) => {
     }
 });
 
-// Create models directory
+// --- GPT-2 Routes (Original) ---
+
 const modelsDir = 'models';
 if (!fs.existsSync(modelsDir)) {
     fs.mkdirSync(modelsDir);
 }
-
-
 
 app.post('/upload', upload.single('pdf'), (req, res) => {
     if (!req.file) {
@@ -133,8 +178,6 @@ app.post('/upload', upload.single('pdf'), (req, res) => {
 
     console.log(`File uploaded: ${filePath}, Model Name: ${modelName}`);
 
-    // Spawn Python process
-    // Use the python executable from the virtual environment or environment variable
     const pythonExecutable = process.env.PYTHON_PATH || path.join(__dirname, 'venv', 'Scripts', 'python');
     const pythonProcess = spawn(pythonExecutable, ['train.py', filePath, '--output_dir', modelOutputDir]);
 
@@ -153,9 +196,6 @@ app.post('/upload', upload.single('pdf'), (req, res) => {
 
     pythonProcess.on('close', (code) => {
         console.log(`child process exited with code ${code}`);
-        // Cleanup uploaded file
-        // fs.unlinkSync(filePath); 
-
         if (code !== 0) {
             res.status(500).send({
                 message: 'Training failed',
